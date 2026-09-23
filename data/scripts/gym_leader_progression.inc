@@ -23,14 +23,6 @@ GymLeader_EventScript_PrepareChallenger::
 	copyvar VAR_0x8005, VAR_RESULT
 	return
 
-GymLeader_EventScript_RecordDefenseWin::
-	special Special_GymLeader_RecordWin
-	return
-
-GymLeader_EventScript_RecordDefenseLoss::
-	special Special_GymLeader_RecordLoss
-	return
-
 @ Upgrade gates. Prices are initial balancing values.
 GymLeader_EventScript_TryUpgradeToLevel2::
 	setvar VAR_RESULT, FALSE
