@@ -8,7 +8,27 @@ GymLeader_EventScript_ResetTierProgress::
 	return
 
 GymLeader_EventScript_RecordChallengerBattle::
+	@ Defense results already increment this counter in GymLeader_RecordDefenseResult.
+	@ Keep this helper for map scripts that need to record a non-standard battle.
 	addvar VAR_GYM_LEVEL_BATTLES, 1
+	return
+
+@ Prepare a normal challenger encounter. Scripts can read:
+@   VAR_0x8004 = scaled challenger level
+@   VAR_0x8005 = effective party size after defender attrition.
+GymLeader_EventScript_PrepareChallenger::
+	special Special_GymLeader_GetChallengerLevel
+	copyvar VAR_0x8004, VAR_RESULT
+	special Special_GymLeader_GetChallengerPartySize
+	copyvar VAR_0x8005, VAR_RESULT
+	return
+
+GymLeader_EventScript_RecordDefenseWin::
+	special Special_GymLeader_RecordWin
+	return
+
+GymLeader_EventScript_RecordDefenseLoss::
+	special Special_GymLeader_RecordLoss
 	return
 
 @ Upgrade gates. Prices are initial balancing values.
