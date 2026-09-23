@@ -4,6 +4,10 @@ on:
   push:
     branches: [ master ]
   pull_request:
+    branches: [ master ]
+    paths-ignore:
+      - 'tools/fireblack_roster_data/**'
+      - 'docs/FIREBLACK_IMPORT_STATUS.md'
 
 jobs:
   build:
