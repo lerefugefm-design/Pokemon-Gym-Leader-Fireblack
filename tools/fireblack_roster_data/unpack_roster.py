@@ -44,7 +44,14 @@ FIELD_ALIASES = {
 def decode_roster():
     packed = "".join(DATA.split()).replace("\\`", "`")
     raw = base64.b85decode(packed.encode("ascii"))
-    text = zlib.decompress(raw).decode("utf-8")
+    try:
+        text = zlib.decompress(raw).decode("utf-8")
+    except zlib.error as exc:
+        raise SystemExit(
+            "Fire Black derived roster payload is truncated or corrupt; "
+            "regenerate roster_data_1.py from the verified extraction before importing "
+            f"species data ({exc})"
+        ) from exc
     rows = list(csv.reader(io.StringIO(text)))
     if len(rows) < 2:
         raise SystemExit("decoded roster is empty")
