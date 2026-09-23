@@ -42,7 +42,7 @@ FIELD_ALIASES = {
 
 
 def decode_roster():
-    raw = base64.b85decode(DATA.encode("ascii"))
+    raw = base64.b85decode("".join(DATA.split()).encode("ascii"))
     text = zlib.decompress(raw).decode("utf-8")
     rows = list(csv.reader(io.StringIO(text)))
     if len(rows) < 2:
