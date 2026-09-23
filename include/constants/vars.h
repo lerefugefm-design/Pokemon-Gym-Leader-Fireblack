@@ -298,7 +298,7 @@
 #define VAR_0x40F5                 0x40F5
 #define VAR_0x40F6                 0x40F6
 #define VAR_0x40F7                 0x40F7
-#define VAR_0x40F8                 0x40F8
+#define VAR_GYM_LEADER_LEVEL       0x40F8 // Hub progression: 0=A, 1=B, 2=C, 3=D + Move Tutor
 #define VAR_0x40F9                 0x40F9
 #define VAR_0x40FA                 0x40FA
 #define VAR_0x40FB                 0x40FB
