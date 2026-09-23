@@ -72,6 +72,7 @@ gSpecialVars::
 	.4byte gSpecialVar_0x8014
 
 	.include "data/specials.inc"
+	.include "data/scripts/gym_leader.inc"
 
 	.align 2
 gStdScripts::
