@@ -3,7 +3,8 @@
 
 The repository contains only extracted/derived data, never the commercial ROM.
 By default this validates the payload and reports its schema. Pass an output path
-to materialize a CSV suitable for import tooling.
+to materialize a CSV suitable for import tooling. Use --manifest to emit a small
+JSON audit manifest before any generated C table is allowed to touch game data.
 
 The custom Charmander line is always excluded from staged bulk imports. This is
 also enforced by the canonical Gen III species slots (4, 5 and 6), so the guard
@@ -11,7 +12,9 @@ does not depend on the extracted table containing species names.
 """
 import base64
 import csv
+import hashlib
 import io
+import json
 import pathlib
 import sys
 import zlib
@@ -22,8 +25,6 @@ EXPECTED_SCANNED_ROWS = 411
 CUSTOM_LINE = {"CHARMANDER", "CHARMELEON", "CHARIZARD"}
 CUSTOM_LINE_SLOTS = {4, 5, 6}
 
-# Known semantic translations discovered while auditing Fire Black. Raw type IDs
-# must never be written directly into pokeemerald/pokefirered C tables.
 KNOWN_FIREBLACK_TYPE_IDS = {
     17: "FAIRY",
     23: "DARK",
@@ -58,7 +59,6 @@ def find_column(header, *candidates):
 
 
 def protected_row_indices(rows):
-    """Return 1-based species slots that must never be bulk imported."""
     protected = set(CUSTOM_LINE_SLOTS)
     header = rows[0]
     name_col = find_column(header, "name", "species", "species_name", "pokemon")
@@ -70,25 +70,43 @@ def protected_row_indices(rows):
     return protected
 
 
-def write_staged_csv(rows, output):
-    """Write derived data with protected custom-line rows removed.
+def importable_rows(rows):
+    protected = protected_row_indices(rows)
+    return [(slot, row) for slot, row in enumerate(rows[1:], 1) if slot not in protected]
 
-    A source_slot column is prepended so later generators can map every row back
-    to its exact FireRed species index without relying on row order after the
-    exclusions. This makes subsequent stats/types/abilities imports auditable.
-    """
+
+def write_staged_csv(rows, output):
     protected = protected_row_indices(rows)
     with output.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(["source_slot", *rows[0]])
-        for slot, row in enumerate(rows[1:], 1):
-            if slot not in protected:
-                writer.writerow([slot, *row])
+        writer.writerows(importable_rows(rows))
     return protected
 
 
+def write_manifest(text, rows, output):
+    """Write deterministic audit metadata for generated imports.
+
+    The digest identifies the decoded derived dataset, not any commercial ROM.
+    Keeping this beside generated tables makes accidental row shifts or a future
+    extraction change immediately visible in review.
+    """
+    protected = protected_row_indices(rows)
+    manifest = {
+        "format": 1,
+        "decoded_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "scanned_rows": len(rows) - 1,
+        "importable_rows": len(importable_rows(rows)),
+        "columns": rows[0],
+        "protected_species_slots": sorted(protected),
+        "type_id_overrides": {str(k): v for k, v in sorted(KNOWN_FIREBLACK_TYPE_IDS.items())},
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def main():
-    _, rows = decode_roster()
+    text, rows = decode_roster()
     protected = protected_row_indices(rows)
     print(f"Decoded Fire Black roster: {len(rows) - 1} data rows, {len(rows[0])} columns")
     print("Columns: " + ", ".join(rows[0]))
@@ -97,10 +115,17 @@ def main():
     ))
     print("Protected custom-line species slots: " + ", ".join(map(str, sorted(protected))))
 
-    if len(sys.argv) > 2:
+    args = sys.argv[1:]
+    if args[:1] == ["--manifest"]:
+        if len(args) != 2:
+            raise SystemExit(f"usage: {pathlib.Path(sys.argv[0]).name} --manifest output.json")
+        write_manifest(text, rows, pathlib.Path(args[1]))
+        print(f"Wrote audit manifest: {args[1]}")
+        return
+    if len(args) > 1:
         raise SystemExit(f"usage: {pathlib.Path(sys.argv[0]).name} [staged-output.csv]")
-    if len(sys.argv) == 2:
-        output = pathlib.Path(sys.argv[1])
+    if args:
+        output = pathlib.Path(args[0])
         output.parent.mkdir(parents=True, exist_ok=True)
         excluded = write_staged_csv(rows, output)
         print(
