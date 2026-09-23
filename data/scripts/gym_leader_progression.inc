@@ -1,6 +1,6 @@
-# Gym progression script primitives
-#
-# Map-independent routines used by the village NPC/menu.
+@ Gym progression script primitives
+@
+@ Map-independent routines used by the village NPC/menu.
 
 GymLeader_EventScript_ResetTierProgress::
 	setvar VAR_GYM_LEVEL_BATTLES, 0
@@ -11,7 +11,7 @@ GymLeader_EventScript_RecordChallengerBattle::
 	addvar VAR_GYM_LEVEL_BATTLES, 1
 	return
 
-# Upgrade gates. Prices are initial balancing values.
+@ Upgrade gates. Prices are initial balancing values.
 GymLeader_EventScript_TryUpgradeToLevel2::
 	setvar VAR_RESULT, FALSE
 	compare VAR_GYM_LEADER_LEVEL, 0
@@ -83,7 +83,7 @@ GymLeader_EventScript_CheckZoneD::
 	setvar VAR_RESULT, TRUE
 	return
 
-# Defender attrition is stored in half-KO units. VAR_RESULT returns whole KOs.
+@ Defender attrition is stored in half-KO units. VAR_RESULT returns whole KOs.
 GymLeader_EventScript_CalculateAttrition::
 	setvar VAR_RESULT, 0
 	compare VAR_GYM_DEFENDER_COUNT, 0
