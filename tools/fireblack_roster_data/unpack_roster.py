@@ -3,8 +3,8 @@
 
 The repository contains only extracted/derived data, never the commercial ROM.
 By default this validates the payload and reports its schema. Pass an output path
-to materialize a CSV suitable for import tooling. Use --manifest to emit a small
-JSON audit manifest before any generated C table is allowed to touch game data.
+to materialize a CSV suitable for import tooling. Use --manifest for an audit
+manifest, or --preflight for a deterministic import-readiness report.
 
 The custom Charmander line is always excluded from staged bulk imports. This is
 also enforced by the canonical Gen III species slots (4, 5 and 6), so the guard
@@ -25,9 +25,19 @@ EXPECTED_SCANNED_ROWS = 411
 CUSTOM_LINE = {"CHARMANDER", "CHARMELEON", "CHARIZARD"}
 CUSTOM_LINE_SLOTS = {4, 5, 6}
 
-KNOWN_FIREBLACK_TYPE_IDS = {
-    17: "FAIRY",
-    23: "DARK",
+KNOWN_FIREBLACK_TYPE_IDS = {17: "FAIRY", 23: "DARK"}
+FIELD_ALIASES = {
+    "hp": ("hp", "base_hp"),
+    "attack": ("attack", "atk", "base_attack"),
+    "defense": ("defense", "def", "base_defense"),
+    "speed": ("speed", "spe", "base_speed"),
+    "sp_attack": ("sp_attack", "spatk", "spa", "special_attack"),
+    "sp_defense": ("sp_defense", "spdef", "spd", "special_defense"),
+    "type1": ("type1", "type_1", "primary_type"),
+    "type2": ("type2", "type_2", "secondary_type"),
+    "ability1": ("ability1", "ability_1", "ability"),
+    "ability2": ("ability2", "ability_2"),
+    "hidden_ability": ("hidden_ability", "ability_hidden", "ability3"),
 }
 
 
@@ -41,10 +51,7 @@ def decode_roster():
     if not width or any(len(row) != width for row in rows):
         raise SystemExit("decoded roster has inconsistent CSV rows")
     if len(rows) - 1 != EXPECTED_SCANNED_ROWS:
-        raise SystemExit(
-            f"unexpected Fire Black roster size: {len(rows) - 1}; "
-            f"expected {EXPECTED_SCANNED_ROWS} scanned species slots"
-        )
+        raise SystemExit(f"unexpected Fire Black roster size: {len(rows) - 1}; expected {EXPECTED_SCANNED_ROWS} scanned species slots")
     if len(set(rows[0])) != width:
         raise SystemExit("decoded roster contains duplicate column names")
     return text, rows
@@ -60,8 +67,7 @@ def find_column(header, *candidates):
 
 def protected_row_indices(rows):
     protected = set(CUSTOM_LINE_SLOTS)
-    header = rows[0]
-    name_col = find_column(header, "name", "species", "species_name", "pokemon")
+    name_col = find_column(rows[0], "name", "species", "species_name", "pokemon")
     if name_col is not None:
         for slot, row in enumerate(rows[1:], 1):
             name = row[name_col].strip().upper().replace("é", "E")
@@ -75,6 +81,26 @@ def importable_rows(rows):
     return [(slot, row) for slot, row in enumerate(rows[1:], 1) if slot not in protected]
 
 
+def resolved_fields(header):
+    return {field: find_column(header, *aliases) for field, aliases in FIELD_ALIASES.items()}
+
+
+def preflight(rows):
+    fields = resolved_fields(rows[0])
+    required = ("hp", "attack", "defense", "speed", "sp_attack", "sp_defense", "type1", "type2")
+    missing_required = [field for field in required if fields[field] is None]
+    protected = protected_row_indices(rows)
+    return {
+        "scanned_rows": len(rows) - 1,
+        "importable_rows": len(importable_rows(rows)),
+        "protected_species_slots": sorted(protected),
+        "resolved_fields": {field: (rows[0][index] if index is not None else None) for field, index in fields.items()},
+        "missing_required_fields": missing_required,
+        "stats_and_types_ready": not missing_required,
+        "abilities_present": any(fields[name] is not None for name in ("ability1", "ability2", "hidden_ability")),
+    }
+
+
 def write_staged_csv(rows, output):
     protected = protected_row_indices(rows)
     with output.open("w", encoding="utf-8", newline="") as handle:
@@ -85,12 +111,6 @@ def write_staged_csv(rows, output):
 
 
 def write_manifest(text, rows, output):
-    """Write deterministic audit metadata for generated imports.
-
-    The digest identifies the decoded derived dataset, not any commercial ROM.
-    Keeping this beside generated tables makes accidental row shifts or a future
-    extraction change immediately visible in review.
-    """
     protected = protected_row_indices(rows)
     manifest = {
         "format": 1,
@@ -100,6 +120,7 @@ def write_manifest(text, rows, output):
         "columns": rows[0],
         "protected_species_slots": sorted(protected),
         "type_id_overrides": {str(k): v for k, v in sorted(KNOWN_FIREBLACK_TYPE_IDS.items())},
+        "preflight": preflight(rows),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -110,12 +131,15 @@ def main():
     protected = protected_row_indices(rows)
     print(f"Decoded Fire Black roster: {len(rows) - 1} data rows, {len(rows[0])} columns")
     print("Columns: " + ", ".join(rows[0]))
-    print("Raw type translations required: " + ", ".join(
-        f"{raw_id}={name}" for raw_id, name in sorted(KNOWN_FIREBLACK_TYPE_IDS.items())
-    ))
+    print("Raw type translations required: " + ", ".join(f"{raw_id}={name}" for raw_id, name in sorted(KNOWN_FIREBLACK_TYPE_IDS.items())))
     print("Protected custom-line species slots: " + ", ".join(map(str, sorted(protected))))
 
     args = sys.argv[1:]
+    if args[:1] == ["--preflight"]:
+        if len(args) != 1:
+            raise SystemExit(f"usage: {pathlib.Path(sys.argv[0]).name} --preflight")
+        print(json.dumps(preflight(rows), indent=2, sort_keys=True))
+        return
     if args[:1] == ["--manifest"]:
         if len(args) != 2:
             raise SystemExit(f"usage: {pathlib.Path(sys.argv[0]).name} --manifest output.json")
@@ -128,10 +152,7 @@ def main():
         output = pathlib.Path(args[0])
         output.parent.mkdir(parents=True, exist_ok=True)
         excluded = write_staged_csv(rows, output)
-        print(
-            f"Wrote {output}: {len(rows) - 1 - len(excluded)} importable rows; "
-            f"excluded slots {', '.join(map(str, sorted(excluded)))}"
-        )
+        print(f"Wrote {output}: {len(rows) - 1 - len(excluded)} importable rows; excluded slots {', '.join(map(str, sorted(excluded)))}")
 
 
 if __name__ == "__main__":
