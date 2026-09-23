@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Decode and validate the derived Fire Black roster payload.
+"""Decode, validate and safely stage the derived Fire Black roster payload.
 
 The repository contains only extracted/derived data, never the commercial ROM.
 By default this validates the payload and reports its schema. Pass an output path
-to materialize the decoded CSV for import tooling or local inspection.
+to materialize a CSV suitable for import tooling.
 
-This validator deliberately protects the custom Charmander line: future importers
-must exclude Charmander, Charmeleon and Charizard from bulk Fire Black imports.
+The custom Charmander line is always excluded from staged bulk imports. This is
+also enforced by the canonical Gen III species slots (4, 5 and 6), so the guard
+does not depend on the extracted table containing species names.
 """
 import base64
 import csv
@@ -19,9 +20,10 @@ from roster_data_1 import DATA
 
 EXPECTED_SCANNED_ROWS = 411
 CUSTOM_LINE = {"CHARMANDER", "CHARMELEON", "CHARIZARD"}
+CUSTOM_LINE_SLOTS = {4, 5, 6}
 
-# Fire Black's raw type numbering is not the stock FireRed numbering. Keep raw
-# IDs out of generated C data until they have been translated semantically.
+# Known semantic translations discovered while auditing Fire Black. Raw type IDs
+# must never be written directly into pokeemerald/pokefirered C tables.
 KNOWN_FIREBLACK_TYPE_IDS = {
     17: "FAIRY",
     23: "DARK",
@@ -55,38 +57,56 @@ def find_column(header, *candidates):
     return None
 
 
-def validate_import_guards(rows):
+def protected_row_indices(rows):
+    """Return 1-based species slots that must never be bulk imported."""
+    protected = set(CUSTOM_LINE_SLOTS)
     header = rows[0]
     name_col = find_column(header, "name", "species", "species_name", "pokemon")
-    protected = []
     if name_col is not None:
-        for row in rows[1:]:
+        for slot, row in enumerate(rows[1:], 1):
             name = row[name_col].strip().upper().replace("é", "E")
             if name in CUSTOM_LINE:
-                protected.append(name)
-    return sorted(set(protected))
+                protected.add(slot)
+    return protected
+
+
+def write_staged_csv(rows, output):
+    """Write derived data with protected custom-line rows removed.
+
+    A source_slot column is prepended so later generators can map every row back
+    to its exact FireRed species index without relying on row order after the
+    exclusions. This makes subsequent stats/types/abilities imports auditable.
+    """
+    protected = protected_row_indices(rows)
+    with output.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["source_slot", *rows[0]])
+        for slot, row in enumerate(rows[1:], 1):
+            if slot not in protected:
+                writer.writerow([slot, *row])
+    return protected
 
 
 def main():
-    text, rows = decode_roster()
-    protected = validate_import_guards(rows)
+    _, rows = decode_roster()
+    protected = protected_row_indices(rows)
     print(f"Decoded Fire Black roster: {len(rows) - 1} data rows, {len(rows[0])} columns")
     print("Columns: " + ", ".join(rows[0]))
     print("Raw type translations required: " + ", ".join(
         f"{raw_id}={name}" for raw_id, name in sorted(KNOWN_FIREBLACK_TYPE_IDS.items())
     ))
-    if protected:
-        print("Protected custom line (exclude from bulk import): " + ", ".join(protected))
-    else:
-        print("Protected custom line: no named rows detected; importer must still exclude species IDs")
+    print("Protected custom-line species slots: " + ", ".join(map(str, sorted(protected))))
 
     if len(sys.argv) > 2:
-        raise SystemExit(f"usage: {pathlib.Path(sys.argv[0]).name} [output.csv]")
+        raise SystemExit(f"usage: {pathlib.Path(sys.argv[0]).name} [staged-output.csv]")
     if len(sys.argv) == 2:
         output = pathlib.Path(sys.argv[1])
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(text, encoding="utf-8")
-        print(f"Wrote {output}")
+        excluded = write_staged_csv(rows, output)
+        print(
+            f"Wrote {output}: {len(rows) - 1 - len(excluded)} importable rows; "
+            f"excluded slots {', '.join(map(str, sorted(excluded)))}"
+        )
 
 
 if __name__ == "__main__":
