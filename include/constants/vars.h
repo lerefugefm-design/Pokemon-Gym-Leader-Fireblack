@@ -301,10 +301,10 @@
 #define VAR_GYM_LEADER_LEVEL       0x40F8 // Hub progression: 0=A, 1=B, 2=C, 3=D + Move Tutor
 #define VAR_GYM_DEFENDER_COUNT     0x40F9 // Number of trainers defending the player's Gym
 #define VAR_GYM_DEFENDER_POWER     0x40FA // Defender strength in half-KO units: 1=1/2 mon, 2=1 mon
-#define VAR_0x40FB                 0x40FB
-#define VAR_0x40FC                 0x40FC
-#define VAR_0x40FD                 0x40FD
-#define VAR_0x40FE                 0x40FE
+#define VAR_GYM_LEVEL_BATTLES      0x40FB // Challenger battles completed at current Gym level
+#define VAR_GYM_CHALLENGER_LEVEL   0x40FC // Calculated challenger level, clamped by Gym level cap
+#define VAR_GYM_TRAINEE_SLOT       0x40FD // Slot/handle for a Pokemon entrusted to a Gym defender
+#define VAR_GYM_TRAINEE_EXP        0x40FE // Accumulated training progress for entrusted Pokemon
 #define VAR_0x40FF                 0x40FF
 
 #define VARS_END                   0x40FF
