@@ -6,6 +6,8 @@
 void GymLeader_InitNewCareer(void);
 void GymLeader_RecordDefenseResult(bool8 won);
 u8 GymLeader_GetRecommendedLevel(void);
+u8 GymLeader_GetChallengerLevel(void);
+u8 GymLeader_GetChallengerPartySize(void);
 u8 GymLeader_GetMaxPartySize(void);
 u16 GymLeader_GetStarterSpecies(u8 specialty);
 u8 GymLeader_SpecialtyToEngineType(u8 specialty);
@@ -22,6 +24,8 @@ void Special_GymLeader_GiveStarter(void);
 void Special_GymLeader_RecordWin(void);
 void Special_GymLeader_RecordLoss(void);
 void Special_GymLeader_GetRecommendedLevel(void);
+void Special_GymLeader_GetChallengerLevel(void);
+void Special_GymLeader_GetChallengerPartySize(void);
 void Special_GymLeader_CheckPartyRules(void);
 void Special_GymLeader_AdvanceWeek(void);
 void Special_GymLeader_GetUpgradeCost(void);
