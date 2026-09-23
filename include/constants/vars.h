@@ -299,8 +299,8 @@
 #define VAR_0x40F6                 0x40F6
 #define VAR_0x40F7                 0x40F7
 #define VAR_GYM_LEADER_LEVEL       0x40F8 // Hub progression: 0=A, 1=B, 2=C, 3=D + Move Tutor
-#define VAR_0x40F9                 0x40F9
-#define VAR_0x40FA                 0x40FA
+#define VAR_GYM_DEFENDER_COUNT     0x40F9 // Number of trainers defending the player's Gym
+#define VAR_GYM_DEFENDER_POWER     0x40FA // Defender strength in half-KO units: 1=1/2 mon, 2=1 mon
 #define VAR_0x40FB                 0x40FB
 #define VAR_0x40FC                 0x40FC
 #define VAR_0x40FD                 0x40FD
