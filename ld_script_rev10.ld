@@ -203,6 +203,7 @@ SECTIONS {
         src/prof_pc.o(.text);
         src/hof_pc.o(.text);
         src/field_specials.o(.text);
+        src/gym_leader.o(.text);
         src/battle_records.o(.text);
         src/evolution_scene.o(.text);
         src/coins.o(.text);
