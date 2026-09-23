@@ -31,6 +31,12 @@ static const u16 sGymUpgradeCosts[] =
     1200, 1800, 2200, 1500, 3500, 2800, 2600, 5000,
 };
 
+// Purchased Gym tiers use a separate roguelite difficulty curve. Challengers
+// anchor to the weakest usable party member, become stronger as defenses are
+// completed in the current tier, and can never exceed that tier's level cap.
+static const u8 sGymTierLevelCaps[] = {15, 25, 40, 55};
+static const u8 sGymTierPartySizes[] = {4, 4, 6, 6};
+
 static const u16 sDefaultStarterBySpecialty[GYM_SPECIALTY_COUNT] =
 {
     [GYM_SPECIALTY_NORMAL]   = SPECIES_EEVEE,
@@ -62,6 +68,68 @@ static u8 GetRankFromReputation(u16 reputation)
             return i;
     }
     return 0;
+}
+
+static u8 GymLeader_GetWeakestPartyLevel(void)
+{
+    u8 i;
+    u8 weakest = MAX_LEVEL;
+    bool8 found = FALSE;
+
+    for (i = 0; i < PARTY_SIZE; i++)
+    {
+        u16 species = GetMonData(&gPlayerParty[i], MON_DATA_SPECIES);
+        u8 level;
+
+        if (species == SPECIES_NONE || GetMonData(&gPlayerParty[i], MON_DATA_HP) == 0)
+            continue;
+        level = GetMonData(&gPlayerParty[i], MON_DATA_LEVEL);
+        if (!found || level < weakest)
+            weakest = level;
+        found = TRUE;
+    }
+
+    return found ? weakest : 5;
+}
+
+u8 GymLeader_GetChallengerLevel(void)
+{
+    u8 tier = VarGet(VAR_GYM_LEADER_LEVEL);
+    u16 battles = VarGet(VAR_GYM_LEVEL_BATTLES);
+    u8 level = GymLeader_GetWeakestPartyLevel();
+
+    if (tier >= ARRAY_COUNT(sGymTierLevelCaps))
+        tier = ARRAY_COUNT(sGymTierLevelCaps) - 1;
+
+    // One level of pressure every three completed defenses in this tier.
+    level += battles / 3;
+    if (level > sGymTierLevelCaps[tier])
+        level = sGymTierLevelCaps[tier];
+    if (level < 5)
+        level = 5;
+
+    VarSet(VAR_GYM_CHALLENGER_LEVEL, level);
+    return level;
+}
+
+u8 GymLeader_GetChallengerPartySize(void)
+{
+    u8 tier = VarGet(VAR_GYM_LEADER_LEVEL);
+    u16 halfKos;
+    u8 removed;
+    u8 size;
+
+    if (tier >= ARRAY_COUNT(sGymTierPartySizes))
+        tier = ARRAY_COUNT(sGymTierPartySizes) - 1;
+
+    size = sGymTierPartySizes[tier];
+    halfKos = VarGet(VAR_GYM_DEFENDER_COUNT) * VarGet(VAR_GYM_DEFENDER_POWER);
+    removed = halfKos / 2;
+
+    // Preliminary trainers may weaken a challenger but never erase the battle.
+    if (removed >= size)
+        return 1;
+    return size - removed;
 }
 
 u8 GymLeader_SpecialtyToEngineType(u8 specialty)
@@ -109,6 +177,13 @@ void GymLeader_InitNewCareer(void)
     VarSet(VAR_GYM_INSPECTION_PROGRESS, 0);
     VarSet(VAR_GYM_SIGNATURE_SPECIES, SPECIES_NONE);
     VarSet(VAR_GYM_RULESET, GYM_RULESET_STRICT_MONOTYPE);
+    VarSet(VAR_GYM_LEADER_LEVEL, 0);
+    VarSet(VAR_GYM_DEFENDER_COUNT, 0);
+    VarSet(VAR_GYM_DEFENDER_POWER, 2);
+    VarSet(VAR_GYM_LEVEL_BATTLES, 0);
+    VarSet(VAR_GYM_CHALLENGER_LEVEL, 5);
+    VarSet(VAR_GYM_TRAINEE_SLOT, 0);
+    VarSet(VAR_GYM_TRAINEE_EXP, 0);
 }
 
 void GymLeader_RecordDefenseResult(bool8 won)
@@ -118,6 +193,7 @@ void GymLeader_RecordDefenseResult(bool8 won)
     u16 budget = VarGet(VAR_GYM_BUDGET);
 
     VarSet(VAR_GYM_DEFENSE_COUNT, VarGet(VAR_GYM_DEFENSE_COUNT) + 1);
+    VarSet(VAR_GYM_LEVEL_BATTLES, VarGet(VAR_GYM_LEVEL_BATTLES) + 1);
 
     if (won)
     {
@@ -298,6 +374,16 @@ void Special_GymLeader_RecordLoss(void)
 void Special_GymLeader_GetRecommendedLevel(void)
 {
     gSpecialVar_Result = GymLeader_GetRecommendedLevel();
+}
+
+void Special_GymLeader_GetChallengerLevel(void)
+{
+    gSpecialVar_Result = GymLeader_GetChallengerLevel();
+}
+
+void Special_GymLeader_GetChallengerPartySize(void)
+{
+    gSpecialVar_Result = GymLeader_GetChallengerPartySize();
 }
 
 void Special_GymLeader_CheckPartyRules(void)
