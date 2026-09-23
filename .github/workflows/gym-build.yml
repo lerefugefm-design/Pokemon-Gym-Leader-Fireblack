@@ -1,0 +1,57 @@
+name: Gym Leader Fire Black CI
+
+on:
+  push:
+    branches: [ gym-leader-fireblack ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build-modern:
+    runs-on: ubuntu-latest
+    env:
+      GAME_VERSION: FIRERED
+      GAME_LANGUAGE: ENGLISH
+      GAME_REVISION: 0
+      MODERN: 1
+      COMPARE: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ARM toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi binutils-arm-none-eabi libpng-dev
+
+      - name: Validate Fire Black derived roster
+        shell: bash
+        run: |
+          # The derived roster payload is intentionally kept separate from the
+          # playable build. Validate it when complete, but never make a damaged
+          # tooling payload block generation of a test ROM.
+          if python3 tools/fireblack_roster_data/unpack_roster.py --preflight; then
+            python3 tools/fireblack_roster_data/unpack_roster.py --manifest /tmp/fireblack-roster-manifest.json
+            python3 tools/fireblack_roster_data/unpack_roster.py /tmp/fireblack-roster-staging.csv
+          else
+            echo "::warning::Fire Black derived roster payload needs regeneration; skipping import preflight."
+          fi
+
+      - name: Build ROM
+        run: make -j2 all
+
+      - name: Find ROM
+        id: rom
+        shell: bash
+        run: |
+          ROM="$(find . -maxdepth 1 -name 'poke*.gba' -print -quit)"
+          test -n "$ROM"
+          echo "rom=$ROM" >> "$GITHUB_OUTPUT"
+
+      - name: Upload ROM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokemon-Gym-Leader-FireBlack-test
+          path: ${{ steps.rom.outputs.rom }}
+          if-no-files-found: error

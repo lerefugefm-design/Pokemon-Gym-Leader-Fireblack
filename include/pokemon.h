@@ -235,6 +235,11 @@ struct SpeciesInfo
             u8 noFlip : 1;
 };
 
+// Per-move damage category (Generation IV+ physical/special split).
+#define SPLIT_PHYSICAL 0
+#define SPLIT_SPECIAL  1
+#define SPLIT_STATUS   2
+
 struct BattleMove
 {
     u8 effect;
@@ -246,6 +251,7 @@ struct BattleMove
     u8 target;
     s8 priority;
     u8 flags;
+    u8 split;
 };
 
 #define SPINDA_SPOT_WIDTH 16

@@ -72,6 +72,7 @@ gSpecialVars::
 	.4byte gSpecialVar_0x8014
 
 	.include "data/specials.inc"
+	.include "data/scripts/gym_leader.inc"
 
 	.align 2
 gStdScripts::
@@ -1342,6 +1343,7 @@ Text_TestMsg::
 	.include "data/scripts/field_moves.inc"
 	.include "data/scripts/item_ball_scripts.inc"
 	.include "data/scripts/mystery_event_club.inc"
+	.include "data/scripts/gym_leader_progression.inc"
 	.include "data/scripts/day_care.inc"
 	.include "data/text/day_care.inc"
 	.include "data/scripts/flash.inc"
